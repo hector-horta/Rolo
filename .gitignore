@@ -1,0 +1,6 @@
+.gradle/
+app/build
+gradle/
+gradlew
+gradlew.bat
+java_*.hprof
