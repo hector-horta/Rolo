@@ -2,12 +2,15 @@ package com.rolo.app
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.ContactsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +20,7 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -39,13 +43,28 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = LocalContext.current
-            // Material You - Colores Dinámicos
-            MaterialTheme(colorScheme = dynamicLightColorScheme(context)) {
-                RoloAppScreen(
-                    viewModel = viewModel,
-                    onTakePhoto = { takePicture.launch(null) },
-                    onExportDb = { viewModel.exportDatabaseToDrive(this) }
-                )
+            val darkTheme = isSystemInDarkTheme()
+            
+            // Soporte para Material You (Colores Dinámicos) con fallback
+            val colorScheme = when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                    if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                }
+                darkTheme -> darkColorScheme()
+                else -> lightColorScheme()
+            }
+
+            MaterialTheme(colorScheme = colorScheme) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    RoloAppScreen(
+                        viewModel = viewModel,
+                        onTakePhoto = { takePicture.launch(null) },
+                        onExportDb = { viewModel.exportDatabaseToDrive(this) }
+                    )
+                }
             }
         }
     }
@@ -78,11 +97,11 @@ fun RoloAppScreen(
                     .clickable { viewModel.showPaywallIfLimitReached(force = true) }
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    val progress = (state.cardCount / 25f).coerceIn(0f, 1f)
+                    val progressVal = (state.cardCount / 25f).coerceIn(0f, 1f)
                     LinearProgressIndicator(
-                        progress = { progress },
+                        progress = progressVal,
                         modifier = Modifier.fillMaxWidth().height(8.dp),
-                        color = if (progress >= 1f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        color = if (progressVal >= 1f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Text(
@@ -117,19 +136,27 @@ fun RoloAppScreen(
                     BusinessCardItem(
                         card = card,
                         onCall = { 
-                            val intent = Intent(Intent.ACTION.DIAL, Uri.parse("tel:${card.phone}"))
+                            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${card.phone}"))
                             context.startActivity(intent)
                         },
                         onEmail = {
-                            val intent = Intent(Intent.ACTION.SENDTO, Uri.parse("mailto:${card.email}"))
+                            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${card.email}"))
                             context.startActivity(intent)
                         },
                         onNavigate = {
-                            val intent = Intent(Intent.ACTION.VIEW, Uri.parse("geo:0,0?q=${Uri.encode(card.address)}"))
-                            intent.setPackage("com.google.android.apps.maps")
-                            if(intent.resolveActivity(context.packageManager) != null) {
-                                context.startActivity(intent)
+                            val uri = Uri.parse("geo:0,0?q=${Uri.encode(card.address)}")
+                            val intent = Intent(Intent.ACTION_VIEW, uri)
+                            context.startActivity(intent)
+                        },
+                        onAddToContacts = {
+                            val intent = Intent(Intent.ACTION_INSERT).apply {
+                                type = ContactsContract.RawContacts.CONTENT_TYPE
+                                putExtra(ContactsContract.Intents.Insert.NAME, card.name)
+                                putExtra(ContactsContract.Intents.Insert.PHONE, card.phone)
+                                putExtra(ContactsContract.Intents.Insert.EMAIL, card.email)
+                                putExtra(ContactsContract.Intents.Insert.POSTAL, card.address)
                             }
+                            context.startActivity(intent)
                         }
                     )
                 }
@@ -139,7 +166,13 @@ fun RoloAppScreen(
 }
 
 @Composable
-fun BusinessCardItem(card: BusinessCard, onCall: () -> Unit, onEmail: () -> Unit, onNavigate: () -> Unit) {
+fun BusinessCardItem(
+    card: BusinessCard, 
+    onCall: () -> Unit, 
+    onEmail: () -> Unit, 
+    onNavigate: () -> Unit,
+    onAddToContacts: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -157,6 +190,7 @@ fun BusinessCardItem(card: BusinessCard, onCall: () -> Unit, onEmail: () -> Unit
                 if (card.address.isNotEmpty()) {
                     IconButton(onClick = onNavigate) { Icon(Icons.Default.LocationOn, "Address") }
                 }
+                IconButton(onClick = onAddToContacts) { Icon(Icons.Default.PersonAdd, "Add to Contacts") }
             }
         }
     }
