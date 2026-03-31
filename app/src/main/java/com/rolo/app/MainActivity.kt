@@ -17,34 +17,36 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.rememberAsyncImagePainter
 import com.rolo.app.camera.CameraPreview
 import com.rolo.app.data.BusinessCard
 import com.rolo.app.ui.MainViewModel
+import com.rolo.app.ui.UiState
 import java.io.File
 
 sealed class Screen {
@@ -81,8 +83,16 @@ class MainActivity : ComponentActivity() {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
                     if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
                 }
-                darkTheme -> darkColorScheme()
-                else -> lightColorScheme()
+                darkTheme -> darkColorScheme(
+                    primary = Color.Black,
+                    background = Color(0xFFFCF9F8),
+                    surface = Color.White
+                )
+                else -> lightColorScheme(
+                    primary = Color.Black,
+                    background = Color(0xFFFCF9F8),
+                    surface = Color.White
+                )
             }
 
             MaterialTheme(colorScheme = colorScheme) {
@@ -162,7 +172,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoloAppScreen(
     viewModel: MainViewModel,
@@ -171,99 +180,226 @@ fun RoloAppScreen(
     onCardClick: (BusinessCard) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
+    RoloAppContent(
+        state = state,
+        onTakePhoto = onTakePhoto,
+        onCardClick = onCardClick
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RoloAppContent(
+    state: UiState,
+    onTakePhoto: () -> Unit = {},
+    onCardClick: (BusinessCard) -> Unit = {}
+) {
+    var searchQuery by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                TopAppBar(
-                    title = { Text("Rolo") },
-                    actions = {
-                        IconButton(onClick = onExportDb) {
-                            Icon(Icons.Default.Backup, contentDescription = "Backup Database")
+            TopAppBar(
+                title = { 
+                    Text("Rolo", fontWeight = FontWeight.Bold) 
+                },
+                navigationIcon = {
+                    IconButton(onClick = { /* Menu */ }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* Profile */ }) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(20.dp))
                         }
                     }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.GridView, contentDescription = "Gallery") },
+                    selected = true,
+                    onClick = { }
                 )
-                Column(modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { viewModel.showPaywallIfLimitReached(force = true) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    val progressVal = (state.cardCount / 25f).coerceIn(0f, 1f)
-                    LinearProgressIndicator(
-                        progress = progressVal,
-                        modifier = Modifier.fillMaxWidth().height(8.dp),
-                        color = if (progressVal >= 1f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    Text(
-                        text = if (state.isPremium) "Premium Unlocked" else "${state.cardCount}/25 Free Cards (Tap for Info)",
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = 4.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                    selected = false,
+                    onClick = { }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                    selected = false,
+                    onClick = { }
+                )
             }
         },
         floatingActionButton = {
-            if (state.cardCount < 25 || state.isPremium) {
-                FloatingActionButton(onClick = onTakePhoto, containerColor = MaterialTheme.colorScheme.primaryContainer) {
-                    Icon(Icons.Default.Add, contentDescription = "Scan Card")
-                }
+            FloatingActionButton(
+                onClick = onTakePhoto,
+                containerColor = Color.Black,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Card")
             }
         }
     ) { padding ->
-        if (state.showPaywall) {
-            PaywallScreen(
-                onPurchase = { viewModel.purchasePremium(context) },
-                onDismiss = { viewModel.dismissPaywall() }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp)
+        ) {
+            // Search Bar
+            TextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp)
+                    .clip(RoundedCornerShape(24.dp)),
+                placeholder = { Text("Search cards...", color = Color.Gray) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF1F1F1),
+                    unfocusedContainerColor = Color(0xFFF1F1F1),
+                    disabledContainerColor = Color(0xFFF1F1F1),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                ),
+                singleLine = true
             )
-        } else {
+
+            // Gallery Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Column {
+                    Text(
+                        text = "Gallery",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = "${state.cardCount} total",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.Gray
+                    )
+                }
+                
+                AssistChip(
+                    onClick = { /* Filter */ },
+                    label = { Text("RECENT", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    trailingIcon = { Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    border = null,
+                    colors = AssistChipDefaults.assistChipColors(containerColor = Color(0xFFF1F1F1))
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Grid List
             if (state.cards.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No cards yet. Tap + to scan your first business card.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Text("No cards found", color = Color.Gray)
                 }
             } else {
-                LazyColumn(
-                    contentPadding = padding,
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
                     items(state.cards) { card ->
-                        BusinessCardItem(
+                        ModernBusinessCardItem(
                             card = card,
-                            onCardClick = { onCardClick(card) },
-                            onCall = { 
-                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${card.phone}"))
-                                context.startActivity(intent)
-                            },
-                            onEmail = {
-                                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${card.email}"))
-                                context.startActivity(intent)
-                            },
-                            onNavigate = {
-                                val uri = Uri.parse("geo:0,0?q=${Uri.encode(card.address)}")
-                                val intent = Intent(Intent.ACTION_VIEW, uri)
-                                context.startActivity(intent)
-                            },
-                            onAddToContacts = {
-                                val intent = Intent(Intent.ACTION_INSERT).apply {
-                                    type = ContactsContract.RawContacts.CONTENT_TYPE
-                                    putExtra(ContactsContract.Intents.Insert.NAME, card.name)
-                                    putExtra(ContactsContract.Intents.Insert.PHONE, card.phone)
-                                    putExtra(ContactsContract.Intents.Insert.EMAIL, card.email)
-                                    putExtra(ContactsContract.Intents.Insert.POSTAL, card.address)
-                                }
-                                context.startActivity(intent)
-                            }
+                            onClick = { onCardClick(card) }
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun ModernBusinessCardItem(
+    card: BusinessCard,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.6f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.LightGray)
+            ) {
+                if (card.imagePath.isNotEmpty() && File(card.imagePath).exists()) {
+                    Image(
+                        painter = rememberAsyncImagePainter(File(card.imagePath)),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                
+                IconButton(
+                    onClick = onClick,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.NorthEast, 
+                        contentDescription = "Detail", 
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+            
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Text(
+                    text = card.name.ifEmpty { "Unknown" },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black,
+                    maxLines = 1
+                )
+                Text(
+                    text = "CREATIVE DIRECTOR • STUDIO MONO",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    fontSize = 9.sp,
+                    letterSpacing = 0.5.sp,
+                    maxLines = 1
+                )
             }
         }
     }
@@ -281,7 +417,6 @@ fun CardDetailScreen(
     onDelete: () -> Unit
 ) {
     var imageSize by remember { mutableStateOf(Pair(0, 0)) }
-    val density = LocalDensity.current
     
     Scaffold(
         topBar = {
@@ -308,10 +443,6 @@ fun CardDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (card.imagePath.isNotEmpty() && File(card.imagePath).exists()) {
-                Text("Tap on the image to call, email, or navigate",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                
                 Box(modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1.6f)
@@ -345,7 +476,7 @@ fun CardDetailScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (card.name.isNotEmpty()) {
-                        ContactInfoRow(icon = Icons.Default.PersonAdd, label = "Name", value = card.name)
+                        ContactInfoRow(icon = Icons.Default.Person, label = "Name", value = card.name)
                     }
                     if (card.phone.isNotEmpty()) {
                         ContactInfoRow(icon = Icons.Default.Call, label = "Phone", value = card.phone, onClick = onCall)
@@ -495,51 +626,6 @@ fun ActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun BusinessCardItem(
-    card: BusinessCard,
-    onCardClick: () -> Unit,
-    onCall: () -> Unit, 
-    onEmail: () -> Unit, 
-    onNavigate: () -> Unit,
-    onAddToContacts: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clickable { onCardClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (card.imagePath.isNotEmpty() && File(card.imagePath).exists()) {
-                Image(
-                    painter = rememberAsyncImagePainter(File(card.imagePath)),
-                    contentDescription = "Card thumbnail",
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = card.name.ifEmpty { "Unknown" }, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                if (card.phone.isNotEmpty()) {
-                    Text(text = card.phone, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (card.phone.isNotEmpty()) {
-                    IconButton(onClick = onCall, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Call, "Call", modifier = Modifier.size(18.dp)) }
-                }
-                if (card.email.isNotEmpty()) {
-                    IconButton(onClick = onEmail, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Email, "Email", modifier = Modifier.size(18.dp)) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun PaywallScreen(onPurchase: () -> Unit, onDismiss: () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -558,5 +644,54 @@ fun PaywallScreen(onPurchase: () -> Unit, onDismiss: () -> Unit) {
                 Text("Not Now")
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun RoloAppPreview() {
+    MaterialTheme(
+        colorScheme = lightColorScheme(
+            primary = Color.Black,
+            background = Color(0xFFFCF9F8),
+            surface = Color.White
+        )
+    ) {
+        RoloAppContent(
+            state = UiState(
+                cardCount = 2,
+                cards = listOf(
+                    BusinessCard(name = "Alexander Vance"),
+                    BusinessCard(name = "Jane Doe")
+                )
+            )
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ModernBusinessCardItemPreview() {
+    MaterialTheme {
+        ModernBusinessCardItem(
+            card = BusinessCard(name = "Alexander Vance"),
+            onClick = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun CardDetailScreenPreview() {
+    MaterialTheme {
+        CardDetailScreen(
+            card = BusinessCard(name = "Alexander Vance", phone = "123456789", email = "alex@studio.mono", address = "123 Street"),
+            onBack = {},
+            onCall = {},
+            onEmail = {},
+            onNavigate = {},
+            onAddToContacts = {},
+            onDelete = {}
+        )
     }
 }
