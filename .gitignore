@@ -1,6 +1,10 @@
 .gradle/
 app/build
 gradle/
+.idea/
+build
 gradlew
 gradlew.bat
 java_*.hprof
+
+config.json

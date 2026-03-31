@@ -5,11 +5,10 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import com.rolo.app.ui.BusinessCard
+import com.rolo.app.data.BusinessCard
 
 class TextRecognitionHelper {
 
-    // Cliente ML Kit Text Recognition nativo, offline y gratuito
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     fun extractDataFromBitmap(bitmap: Bitmap, onResult: (BusinessCard) -> Unit) {
@@ -17,7 +16,7 @@ class TextRecognitionHelper {
 
         recognizer.process(image)
             .addOnSuccessListener { visionText ->
-                val card = parseTextToCard(visionText)
+                val card = parseTextToCard(visionText, bitmap.width, bitmap.height)
                 onResult(card)
             }
             .addOnFailureListener {
@@ -25,45 +24,48 @@ class TextRecognitionHelper {
             }
     }
 
-    private fun parseTextToCard(visionText: Text): BusinessCard {
+    private fun parseTextToCard(visionText: Text, imageWidth: Int, imageHeight: Int): BusinessCard {
         val blocks = visionText.textBlocks
         var name = ""
         var phone = ""
         var email = ""
         var address = ""
+        
+        var phoneBounds: android.graphics.RectF? = null
+        var emailBounds: android.graphics.RectF? = null
+        var addressBounds: android.graphics.RectF? = null
 
         val emailRegex = "[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}".toRegex()
         val phoneRegex = "(\\+?\\d[\\d\\-\\s\\.()]{8,15})".toRegex()
-        val addressKeywords = listOf("street", "ave", "calle", "avenida", "blvd", "floor", "col.", "cp")
+        val addressKeywords = listOf("street", "ave", "calle", "avenida", "blvd", "floor", "col.", "cp", "suite", "office", "building")
 
         for (block in blocks) {
             val blockText = block.text
 
-            // Buscar Email
             if (email.isEmpty()) {
                 val emailMatch = emailRegex.find(blockText)
                 if (emailMatch != null) {
                     email = emailMatch.value
+                    emailBounds = getBlockBounds(block, imageWidth, imageHeight)
                     continue
                 }
             }
 
-            // Buscar Teléfono
             if (phone.isEmpty()) {
                 val phoneMatch = phoneRegex.find(blockText)
                 if (phoneMatch != null && blockText.length < 20) {
                     phone = phoneMatch.value
+                    phoneBounds = getBlockBounds(block, imageWidth, imageHeight)
                     continue
                 }
             }
 
-            // Buscar Dirección 
             if (address.isEmpty() && addressKeywords.any { blockText.lowercase().contains(it) }) {
                 address = blockText
+                addressBounds = getBlockBounds(block, imageWidth, imageHeight)
                 continue
             }
 
-            // Nombre: asume el primer bloque corto que no contiene números
             if (name.isEmpty() && blockText.length in 3..30 && !blockText.contains(Regex("\\d"))) {
                 name = blockText
             }
@@ -73,7 +75,24 @@ class TextRecognitionHelper {
             name = name.ifEmpty { "Desconocido" },
             phone = phone,
             email = email,
-            address = address
+            address = address,
+            phoneBounds = phoneBounds,
+            emailBounds = emailBounds,
+            addressBounds = addressBounds
         )
+    }
+
+    private fun getBlockBounds(block: Text.TextBlock, imageWidth: Int, imageHeight: Int): android.graphics.RectF {
+        val boundingBox = block.boundingBox
+        return if (boundingBox != null) {
+            android.graphics.RectF(
+                boundingBox.left.toFloat() / imageWidth,
+                boundingBox.top.toFloat() / imageHeight,
+                boundingBox.right.toFloat() / imageWidth,
+                boundingBox.bottom.toFloat() / imageHeight
+            )
+        } else {
+            android.graphics.RectF(0f, 0f, 0f, 0f)
+        }
     }
 }
